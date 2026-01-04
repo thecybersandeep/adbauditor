@@ -78,19 +78,6 @@ ADB Auditor is designed with privacy and security as core principles. This docum
 - Keys stored in browser's IndexedDB
 - Device must approve each new connection
 
-## Responsible Disclosure
-
-If you discover a security vulnerability in ADB Auditor:
-
-1. **Do not** create a public GitHub issue
-2. Email: security@thecybersandeep.com
-3. Include:
-   - Description of vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
-
-We will respond within 48 hours and work with you on a fix.
 
 ## Legal Disclaimer
 
@@ -116,29 +103,3 @@ ADB Auditor uses minimal external dependencies:
 | Google Fonts | Typography | Loaded from Google CDN |
 
 No JavaScript libraries are loaded from external CDNs. All code is self-contained.
-
-## Content Security Policy
-
-Recommended CSP headers for self-hosting:
-
-```
-Content-Security-Policy: 
-  default-src 'self';
-  script-src 'self' 'unsafe-inline';
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  font-src 'self' https://fonts.gstatic.com;
-  connect-src 'self';
-  img-src 'self' data: blob:;
-```
-
-## Version History
-
-| Version | Security Updates |
-|---------|-----------------|
-| 1.0.0   | Initial release |
-
-## Contact
-
-For security-related inquiries:
-- Email: security@thecybersandeep.com
-- PGP Key: Available on request
