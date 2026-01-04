@@ -78,45 +78,45 @@ Full-featured file browser powered by ADB with optional root mode, enabling navi
 - USB data cable (not charge-only)
 - For full analysis: Rooted device (optional but recommended)
 
+
 ## Installation
 
-````
 ### Option 1: Use Online (Recommended)
-Visit  
-👉 https://adbauditor.com/
+Visit [https://adbauditor.com/](https://adbauditor.com/)
 
----
-
-### Option 2: Direct Download & Open in Chrome (No Hosting Needed)
-
-You can run **ADB Auditor** completely locally without any server.
+### Option 2: Run Locally (No Hosting Required)
 
 ```bash
-# Download the repository
-git clone https://github.com/thecybersandeep/adbauditor
+# Clone the repository
+git clone https://github.com/thecybersandeep/adbauditor.git
 
 # Navigate to directory
 cd adbauditor
-````
 
-Now simply open the HTML file in Chrome:
-
-```bash
-# Linux / macOS
+# Open directly in browser (recommended)
 google-chrome index.html
-
-# Or manually
-# Right-click index.html → Open With → Google Chrome
 ```
 
-> ✅ No Python, Node.js, PHP, or hosting required
-> ⚠️ For best compatibility, **use Google Chrome** (some browsers may block local JS features)
+### Option 3: Self-Host
 
----
+```
+# Clone the repository
+git clone https://github.com/thecybersandeep/adbauditor.git
 
-### Option 3: Docker
+# Navigate to directory
+cd adbauditor
 
-```bash
+# Serve with any static server
+python -m http.server 8080
+# or
+npx serve .
+# or
+php -S localhost:8080
+```
+
+### Option 4: Docker
+
+```
 # Using Docker Compose
 docker-compose up -d
 
@@ -125,12 +125,7 @@ docker build -t adbauditor .
 docker run -p 8080:80 adbauditor
 ```
 
-Access at:
-👉 `http://localhost:8080`
-
-```
-```
-
+Access at `http://localhost:8080`
 
 ## Usage
 
