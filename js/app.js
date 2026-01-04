@@ -1565,15 +1565,17 @@
                     if (data[section.key]?.length > 0) {
                         html += `<div class="result-box"><div class="result-header"><strong>${section.title} (${data[section.key].length})</strong></div><div class="file-grid">`;
                         for (const f of data[section.key]) {
-                            const path = f.path.replace(/'/g, "\\'");
+                            const encodedPath = btoa(f.path);
+                            const encodedName = btoa(f.name);
+                            const encodedPkg = btoa(pkg);
                             html += `<div class="file-row">
                                 <div class="file-row-info">
                                     <div class="file-row-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
-                                    <span class="file-row-name">${f.name}</span>
+                                    <span class="file-row-name">${escapeHtml(f.name)}</span>
                                 </div>
                                 <div class="file-row-actions">
-                                    <button class="btn btn-sm btn-ghost" onclick="app.viewFile('${pkg}','${path}')">View</button>
-                                    <button class="btn btn-sm btn-ghost" onclick="app.downloadStorageFile('${pkg}','${path}','${f.name}')">Download</button>
+                                    <button class="btn btn-sm btn-ghost" onclick="window.viewStorageFile('${encodedPkg}','${encodedPath}')">View</button>
+                                    <button class="btn btn-sm btn-ghost" onclick="window.downloadStorageFile('${encodedPkg}','${encodedPath}','${encodedName}')">Download</button>
                                 </div>
                             </div>`;
                         }
@@ -1588,31 +1590,64 @@
                 results.innerHTML = `<div class="result-box"><span class="badge fail">Error</span><p style="margin-top:8px">${escapeHtml(e.message)}</p></div>`;
             }
         },
+        handleStorageView(index) {},
+        handleStorageDownload(index) {},
         async viewFile(pkg, path) {
-            showLoading('Loading...');
+            showLoading('Loading file...');
             try {
-                const auditor = new SecurityAuditor(adb);
-                const content = await auditor.readStorageFile(pkg, path);
-                hideLoading();
-                const modal = document.createElement('div');
-                modal.className = 'modal-overlay';
-                modal.innerHTML = `
-                    <div class="modal">
-                        <div class="modal-header">
-                            <span class="modal-title">${path.split('/').pop()}</span>
-                            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
-                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                            </button>
-                        </div>
-                        <div class="modal-body">
-                            <pre>${content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</pre>
-                        </div>
-                    </div>`;
-                modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-                document.body.appendChild(modal);
+                let content;
+                if (path.startsWith('/sdcard/') || path.startsWith('/storage/emulated/')) {
+                    content = await adb.shell(`base64 "${path}"`);
+                } else {
+                    content = await adb.shell(`su -c "base64 '${path}'"`);
+                }
+                const binary = atob(content.trim().replace(/\s/g, ''));
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                const blob = new Blob([bytes]);
+                const reader = new FileReader();
+                reader.onload = function() {
+                    hideLoading();
+                    const textContent = reader.result;
+                    const fileName = path.split('/').pop() || 'file';
+                    const modal = document.createElement('div');
+                    modal.id = 'fileViewModal';
+                    modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+                    const inner = document.createElement('div');
+                    inner.style.cssText = 'background:#0f1015;border:1px solid rgba(255,255,255,0.1);border-radius:16px;max-width:800px;width:100%;max-height:85vh;display:flex;flex-direction:column;';
+                    const header = document.createElement('div');
+                    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.06);';
+                    const title = document.createElement('span');
+                    title.style.cssText = 'font-weight:600;color:#fff;';
+                    title.textContent = fileName;
+                    const closeBtn = document.createElement('button');
+                    closeBtn.style.cssText = 'background:#1a1b24;border:none;width:32px;height:32px;border-radius:8px;cursor:pointer;color:#fff;font-size:18px;';
+                    closeBtn.textContent = '×';
+                    closeBtn.onclick = function() { modal.remove(); };
+                    header.appendChild(title);
+                    header.appendChild(closeBtn);
+                    const body = document.createElement('div');
+                    body.style.cssText = 'padding:20px;overflow:auto;flex:1;';
+                    const pre = document.createElement('pre');
+                    pre.style.cssText = 'font-family:monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#a0a3b1;margin:0;';
+                    pre.textContent = textContent || '[Empty file]';
+                    body.appendChild(pre);
+                    inner.appendChild(header);
+                    inner.appendChild(body);
+                    modal.appendChild(inner);
+                    modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+                    const existing = document.getElementById('fileViewModal');
+                    if (existing) existing.remove();
+                    document.body.appendChild(modal);
+                };
+                reader.onerror = function() {
+                    hideLoading();
+                    showToast('Failed to read file content', 'error');
+                };
+                reader.readAsText(blob);
             } catch (e) {
                 hideLoading();
-                showToast('Failed to read file', 'error');
+                showToast('Error: ' + (e.message || 'Unknown'), 'error');
             }
         },
         async downloadStorageFile(pkg, path, name) {
@@ -1756,4 +1791,95 @@
     });
     navigate('overview');
     window.app = app;
+    window.viewStorageFile = async function(encodedPkg, encodedPath) {
+        const pkg = atob(encodedPkg);
+        const path = atob(encodedPath);
+        showLoading('Loading file...');
+        try {
+            let content;
+            if (path.startsWith('/sdcard/') || path.startsWith('/storage/emulated/')) {
+                content = await adb.shell(`base64 "${path}"`);
+            } else {
+                content = await adb.shell(`su -c "base64 '${path}'"`);
+            }
+            const binary = atob(content.trim().replace(/\s/g, ''));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes]);
+            const reader = new FileReader();
+            reader.onload = function() {
+                hideLoading();
+                const textContent = reader.result;
+                const fileName = path.split('/').pop() || 'file';
+                const modal = document.createElement('div');
+                modal.id = 'fileViewModal';
+                modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+                const inner = document.createElement('div');
+                inner.style.cssText = 'background:#0f1015;border:1px solid rgba(255,255,255,0.1);border-radius:16px;max-width:800px;width:100%;max-height:85vh;display:flex;flex-direction:column;';
+                const header = document.createElement('div');
+                header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid rgba(255,255,255,0.06);';
+                const title = document.createElement('span');
+                title.style.cssText = 'font-weight:600;color:#fff;';
+                title.textContent = fileName;
+                const closeBtn = document.createElement('button');
+                closeBtn.style.cssText = 'background:#1a1b24;border:none;width:32px;height:32px;border-radius:8px;cursor:pointer;color:#fff;font-size:18px;';
+                closeBtn.textContent = '×';
+                closeBtn.onclick = function() { modal.remove(); };
+                header.appendChild(title);
+                header.appendChild(closeBtn);
+                const body = document.createElement('div');
+                body.style.cssText = 'padding:20px;overflow:auto;flex:1;';
+                const pre = document.createElement('pre');
+                pre.style.cssText = 'font-family:monospace;font-size:12px;line-height:1.6;white-space:pre-wrap;word-break:break-word;color:#a0a3b1;margin:0;';
+                pre.textContent = textContent || '[Empty file]';
+                body.appendChild(pre);
+                inner.appendChild(header);
+                inner.appendChild(body);
+                modal.appendChild(inner);
+                modal.onclick = function(e) { if (e.target === modal) modal.remove(); };
+                const existing = document.getElementById('fileViewModal');
+                if (existing) existing.remove();
+                document.body.appendChild(modal);
+            };
+            reader.onerror = function() {
+                hideLoading();
+                showToast('Failed to read file content', 'error');
+            };
+            reader.readAsText(blob);
+        } catch (e) {
+            hideLoading();
+            showToast('Error: ' + (e.message || 'Unknown'), 'error');
+        }
+    };
+    window.downloadStorageFile = async function(encodedPkg, encodedPath, encodedName) {
+        const pkg = atob(encodedPkg);
+        const path = atob(encodedPath);
+        const name = atob(encodedName);
+        showLoading('Downloading...');
+        try {
+            let content;
+            if (path.startsWith('/sdcard/') || path.startsWith('/storage/emulated/')) {
+                content = await adb.shell(`base64 "${path}"`);
+            } else {
+                content = await adb.shell(`su -c "base64 '${path}'"`);
+            }
+            const binary = atob(content.trim().replace(/\s/g, ''));
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            const blob = new Blob([bytes]);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = pkg + '_' + name;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            hideLoading();
+            showToast('Downloaded', 'success');
+        } catch (e) {
+            hideLoading();
+            showToast('Download failed', 'error');
+        }
+    };
 })();

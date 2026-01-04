@@ -1041,7 +1041,6 @@
                 }
 
             } catch (e) {
-                console.error('Error getting storage files:', e);
             }
 
             return result;
@@ -1051,21 +1050,25 @@
          * Read a storage file content using root su -c
          */
         async readStorageFile(packageName, filePath) {
+            if (!isValidPackageName(packageName)) throw new Error('Invalid package name');
+            if (!filePath) throw new Error('No file path provided');
+            
             try {
-                if (filePath.startsWith('/')) {
-                    if (filePath.startsWith('/sdcard/')) {
-                        return await this.adb.shell(`cat "${filePath}" 2>/dev/null`);
-                    }
-                    const content = await this.adb.shell(`su -c "cat '${filePath}'" 2>/dev/null`);
-                    return content || '';
+                let content = '';
+                const safePath = filePath.replace(/"/g, '\\"');
+                
+                if (filePath.startsWith('/sdcard/') || filePath.startsWith('/storage/emulated/')) {
+                    content = await this.adb.shell(`cat "${safePath}"`);
+                } else {
+                    content = await this.adb.shell(`su -c "cat '${filePath}'"`);
                 }
                 
-                const dataDir = `/data/data/${packageName}`;
-                const fullPath = `${dataDir}/${filePath}`;
-                const content = await this.adb.shell(`su -c "cat '${fullPath}'" 2>/dev/null`);
-                return content || '';
+                if (!content || content.trim() === '') {
+                    return '[File is empty or could not be read]';
+                }
+                return content;
             } catch (e) {
-                throw new Error(`Cannot read file: ${e.message}`);
+                return '[Could not read file - root access may be required]';
             }
         }
 

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://adbauditor.com/">Live Demo</a> •
+  <a href="https://adbauditor.com/">Live</a> •
   <a href="#features">Features</a> •
   <a href="#installation">Installation</a> •
   <a href="#usage">Usage</a> •
@@ -42,7 +42,6 @@ ADB Auditor is a browser-based Android security auditing tool designed for penet
 | 📸 **Screenshot** | Capture device screen for documentation and evidence |
 | 🔐 **Security Scan** | Automated security checks for common vulnerabilities |
 | 📊 **Device Info** | Comprehensive device information and system properties |
-| 🌐 **WiFi & USB** | Connect via USB or ADB over WiFi (TCP/IP) |
 
 ## Screenshots
 
@@ -66,25 +65,39 @@ ADB Auditor is a browser-based Android security auditing tool designed for penet
 
 ## Installation
 
+````
 ### Option 1: Use Online (Recommended)
-Visit [https://adbauditor.com/](https://adbauditor.com/)
+Visit  
+👉 https://adbauditor.com/
 
-### Option 2: Self-Host
+---
+
+### Option 2: Direct Download & Open in Chrome (No Hosting Needed)
+
+You can run **ADB Auditor** completely locally without any server.
 
 ```bash
-# Clone the repository
+# Download the repository
 git clone https://github.com/thecybersandeep/adbauditor
 
 # Navigate to directory
 cd adbauditor
+````
 
-# Serve with any static server
-python -m http.server 8080
-# or
-npx serve .
-# or
-php -S localhost:8080
+Now simply open the HTML file in Chrome:
+
+```bash
+# Linux / macOS
+google-chrome index.html
+
+# Or manually
+# Right-click index.html → Open With → Google Chrome
 ```
+
+> ✅ No Python, Node.js, PHP, or hosting required
+> ⚠️ For best compatibility, **use Google Chrome** (some browsers may block local JS features)
+
+---
 
 ### Option 3: Docker
 
@@ -97,7 +110,12 @@ docker build -t adbauditor .
 docker run -p 8080:80 adbauditor
 ```
 
-Access at `http://localhost:8080`
+Access at:
+👉 `http://localhost:8080`
+
+```
+```
+
 
 ## Usage
 
@@ -202,36 +220,13 @@ adbauditor/
 2. Grant root access on device when prompted
 3. Some system files may still be inaccessible
 
-## Contributing
 
-Contributions are welcome! Please read our [Contributing Guidelines](docs/CONTRIBUTING.md) before submitting PRs.
-
-```bash
-# Fork the repository
-# Create your feature branch
-git checkout -b feature/amazing-feature
-
-# Commit your changes
-git commit -m 'Add amazing feature'
-
-# Push to the branch
-git push origin feature/amazing-feature
-
-# Open a Pull Request
-```
-
-## Roadmap
-
-- [ ] APK static analysis
-- [ ] Network traffic inspection
-- [ ] Frida integration
-- [ ] Report generation (PDF/HTML)
-- [ ] Multi-device support
-- [ ] Vulnerability database integration
 
 ## License
 
 This project is licensed under the License: CC BY-NC-ND 4.0
+
+
 
 ## Disclaimer
 
