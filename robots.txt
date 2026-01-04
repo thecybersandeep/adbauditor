@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://adbauditor.com/sitemap.xml
+Sitemap: https://thecybersandeep.github.io/adbauditor//sitemap.xml
