@@ -1,236 +1,185 @@
 # ADB Auditor
 
-<p align="center">
-  <img src="img/logo.svg" alt="ADB Auditor Logo" width="120">
-</p>
+[![License: CC BY-NC-ND 4.0](https://img.shields.io/badge/License-CC%20BY--NC--ND%204.0-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-3.0-10D689.svg)](../../releases)
+[![Pure JS](https://img.shields.io/badge/Pure-JavaScript-F7DF1E?logo=javascript&logoColor=black)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![WebUSB](https://img.shields.io/badge/Transport-WebUSB%20%2B%20ADB-10D689.svg)]()
 
-<p align="center">
-  <strong>Android Security Auditing Platform</strong>
-</p>
+Plug in an Android phone. The browser opens the USB interface, runs the ADB handshake, signs the auth challenge with a stored RSA key, and from there you can list apps, browse files (root toggle included), open a shell, capture screenshots, and run a MASTG-aligned security scan. Nothing leaves the tab.
 
-<p align="center">
-  <a href="https://adbauditor.com/">Live</a> •
-  <a href="#features">Features</a> •
-  <a href="#installation">Installation</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#documentation">Documentation</a>
-</p>
+Try it: [adbauditor.com](https://adbauditor.com)
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-Web-blue?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/Protocol-WebUSB%20%2B%20ADB-green?style=flat-square" alt="Protocol">
-  <img src="https://img.shields.io/badge/Privacy-100%25%20Client--Side-purple?style=flat-square" alt="Privacy">
-  <img src="https://img.shields.io/github/license/thecybersandeep/adbauditor?style=flat-square" alt="License">
-</p>
+![ADB Auditor landing](docs/screenshots/landing-dark.png)
 
----
+## What it actually does
 
-## Overview
+It speaks the real ADB protocol over WebUSB. No host adb-server, no `chrome://` extension, no native bridge.
 
-ADB Auditor is a browser-based Android security auditor. It connects to your phone over WebUSB, runs ADB commands directly from the browser, and lets you list apps, browse files (with root), capture screenshots, open a shell, and scan for common security issues. Nothing leaves the tab.
+- **WebUSB transport** claims the device's ADB interface (class `0xFF`, subclass `0x42`, protocol `0x01`) and reads bulk packets directly.
+- **CNXN / AUTH handshake** parses the device challenge token and signs it with a 2048-bit RSA key. Raw PKCS#1 v1.5 signing is done in JS (WebCrypto hashes the data first, which ADB does not want), via a BigInt `modPow` over the parsed PKCS#8 private key.
+- **Key persistence**: keys are stored in IndexedDB scoped to the origin. After the first authorize, future reconnects are silent, exactly like terminal `adb`.
+- **ADB sockets**: full `OPEN` / `OKAY` / `WRTE` / `CLSE` framing for shell, sync (pull / push), and screencap.
+- **Security scans** are real ADB commands against `dumpsys`, `pm`, `logcat`, `getprop`, `run-as`, optional `su`. Each finding records the literal evidence string and per-instance matches where applicable.
 
-**100% Client-Side** - All data processing happens in your browser. No data is ever uploaded to any server.
+## Architecture
 
-## Features
+```
+js/
+  adb-core.js          ADB protocol: USB transport, CNXN+AUTH, sockets, sync, RSA key store
+  app.js               UI coordinator, tabs, rendering, drag and drop, theme cycle
+  security-auditor.js  MASTG-aligned tests, returns findings with instances
+  pdf.js               PDF audit report (cover, per-test sections, every instance)
+src/
+  styles.css           Theme (dark + light), layout, components
+lib/
+  jspdf.umd.min.js     jsPDF 4.2.1
+img/
+  logo.svg
+docs/
+  API.md
+  SECURITY.md
+```
 
-| Feature | Description |
-|---------|-------------|
-| 📱 **App Analysis** | List installed applications, extract APK files, analyze permissions and signatures |
-| 📂 **File Browser** | Navigate device filesystem with root support, upload/download files |
-| 🗄️ **Storage Audit** | Analyze SharedPreferences, SQLite databases, identify sensitive data exposure |
-| 💻 **Shell Access** | Direct ADB shell with command history and autocomplete |
-| 📸 **Screenshot** | Capture device screen for documentation and evidence |
-| 🔐 **Security Scan** | Automated security checks for common vulnerabilities |
-| 📊 **Device Info** | Comprehensive device information and system properties |
+No bundler. No npm install. Open `index.html` in Chrome and it runs.
 
-## Screenshots
+## Tabs
 
-### 🔐 Android Security Auditing Dashboard
-Modern, client-side Android security auditing interface with WebUSB + ADB support. Connect devices securely and perform deep analysis without uploading data.
-  
-![ADB Auditor Dashboard](https://github.com/user-attachments/assets/eab09ce1-ce31-44cd-b02d-131fa14d5faa)
+The dock on the left has six sections:
 
----
+- **Overview** - Android version, SDK level, user-app count, storage usage, full device properties
+- **Applications** - installed package list with friendly names, search, system-apps toggle, pull-APK button, drag-and-drop APK installer
+- **Files** - device file browser. Breadcrumb path with click-jump, root toggle, upload, hex viewer for binaries
+- **Screenshot** - one click `screencap` capture, preview, download as PNG
+- **Shell** - persistent `shell:` socket with command history (Arrow Up / Down)
+- **Security** - MASTG-aligned audit with per-test cards and per-finding instance lists
 
-### 🧩 Local Storage & App Data Analysis (Root)
-Analyze application storage with root access, including SharedPreferences, databases, and internal files for advanced security assessments.
-  
-![ADB File Browser](https://github.com/user-attachments/assets/75fa83b4-e195-488b-9fdc-5fa248cb2e30)
----
+![Security Analysis](docs/screenshots/security-scan.png)
 
-### 📁 Root File Browser via ADB
-Full-featured file browser powered by ADB with optional root mode, enabling navigation, upload, download, and inspection of device file systems.
-  
-![Root Storage Analysis](https://github.com/user-attachments/assets/fbd571d0-3790-4f85-b3bd-807c878087f9)
+## Security checks
 
+Each test in the auditor returns `{ id, category, title, status, severity, findings[] }`. Findings carry the actual evidence and (where it makes sense) an `instances[]` array of matched lines or components.
 
-## Requirements
+| Area | Test | What it actually runs |
+|---|---|---|
+| Storage | `MASTG-TEST-0001` Local Storage | `run-as <pkg> ls -la shared_prefs/ databases/ files/` plus an `ls /sdcard/Android/data/<pkg>` probe. Each prefs file, sqlite db, or external-storage hit becomes a separate finding. |
+| Storage | `MASTG-TEST-0002` Backup | Parses the `flags=[…]` block from `dumpsys package <pkg>`. Reports failure only when the literal `ALLOW_BACKUP` token is present. |
+| Storage | `MASTG-TEST-0003` Logcat | `pidof <pkg>` then `logcat -d --pid=<pid>`, scanned for password / token / api_key / bearer / email / credit_card / secret patterns. Matched log lines are attached as instances. |
+| Storage | `MASTG-TEST-0004` Clipboard | `service call clipboard` (best-effort, often requires root). |
+| Platform | `MASTG-TEST-0020` Exported Components | Walks the Activity / Service / Receiver / Provider resolver tables in `dumpsys package`. Component names listed per finding. |
+| Platform | `MASTG-TEST-0034` Deep Links | Parses `intent-filter` data attributes from `dumpsys package`. |
+| Platform | WebView config | `pm dump <pkg>` and DEX-strings probe for `setJavaScriptEnabled`, file access, `addJavascriptInterface`, mixed content. |
+| Resilience | Root Detection | Looks for `/system/bin/su`, `/system/xbin/busybox`, `frida-server` process. |
+| Resilience | `MASTG-TEST-0039` Debuggable | Parses `flags=[…]` for the `DEBUGGABLE` token. Separately checks for the well-known `CN=Android Debug, O=Android` debug-key signature. |
+| Resilience | Emulator | `getprop ro.build.fingerprint / ro.product.model / ro.hardware / ro.kernel.qemu`. |
+| Code | `MASTG-TEST-0033` Min SDK | Compares `minSdk` vs current device SDK. |
+| Code | APK signature | `pm dump <pkg>` signer block. |
+| Network | Network Security | `cat /data/data/<pkg>/.../network_security_config.xml` (when readable), checks for cleartext + pinning. |
+| Auth | Auth Storage | Probes Keystore / BiometricPrompt / FingerprintManager API usage. |
+| Privacy | Permissions | `dumpsys package <pkg>` requested + granted dangerous permissions, plus a separate "granted but unused" pass. |
+| Privacy | Intent Filters | All declared `intent-filter` entries with `exported=true`. |
 
-### Browser Support
-- Google Chrome 89+
-- Microsoft Edge 89+
-- Opera 75+
+Every test fans out into a card with severity-coloured side rail (red / amber / blue / grey) and a deduped per-instance list.
 
-> ⚠️ **Note:** Firefox and Safari do not support WebUSB API
+## Connection flow
 
-### Device Requirements
-- Android device with USB Debugging enabled
-- USB data cable (not charge-only)
-- For full analysis: Rooted device (optional but recommended)
+![Connect](docs/screenshots/connect.png)
 
+1. Click **Connect**. Chrome's USB device picker appears.
+2. Select your device. The page calls `claimInterface` on the ADB endpoint.
+3. The page sends `CNXN`. The device replies with `AUTH` and a 20-byte challenge token.
+4. The page finds its stored RSA key in IndexedDB and signs the token with raw PKCS#1 v1.5. The device verifies, replies `CNXN`, you're in. **No prompt on the phone.**
+5. First time only: no stored key matches, so the page generates a new pair, sends `AUTH_RSAPUBLICKEY`, the phone shows "Allow USB debugging from this computer?" with the public-key fingerprint, you accept, and the pair is saved.
 
-## Installation
+If `claimInterface` fails because another process is holding the device (terminal `adb`, Android Studio, scrcpy, another browser tab), the page detects this specifically and shows a help modal with the recovery steps instead of a generic error.
 
-### Option 1: Use Online (Recommended)
-Visit [https://adbauditor.com/](https://adbauditor.com/)
+## Export
 
-### Option 2: Run Locally (No Hosting Required)
+The Security tab has an **Export** menu that emits three formats from the last full scan:
+
+- **PDF** - printable audit. Cover page with package + device meta + four big stat cards, then findings sorted by severity, every test with status badge / id / category / description, every finding with severity tag / location / evidence in a mono card / components and instances lists / recommendation. Built locally with jsPDF 4.2.1, no network call.
+- **JSON** - the full result tree
+- **SARIF 2.1** - drop into GitHub Code Scanning
+
+## Run locally
 
 ```bash
-# Clone the repository
 git clone https://github.com/thecybersandeep/adbauditor.git
-
-# Navigate to directory
 cd adbauditor
-
-# Open directly in browser (recommended)
-google-chrome index.html
-```
-
-### Option 3: Self-Host
-
-```
-# Clone the repository
-git clone https://github.com/thecybersandeep/adbauditor.git
-
-# Navigate to directory
-cd adbauditor
-
-# Serve with any static server
 python -m http.server 8080
-# or
-npx serve .
-# or
-php -S localhost:8080
+# open http://localhost:8080/
 ```
 
-### Option 4: Docker
+That's it. No `npm install`, no `npm run build`. The whole tool is plain HTML + JS + CSS.
 
-```
-# Using Docker Compose
+WebUSB requires HTTPS in production, but `http://localhost` is treated as a secure context, so the local server is enough for development.
+
+Docker is available too if you prefer:
+
+```bash
 docker-compose up -d
-
-# Or using Docker directly
-docker build -t adbauditor .
-docker run -p 8080:80 adbauditor
+# open http://localhost:8080
 ```
 
-Access at `http://localhost:8080`
+## Diagnostics
 
-## Usage
+Append `?debug=1` to the URL. A floating panel appears in the bottom right that streams every ADB packet: `>> CNXN`, `<< AUTH`, `Auth requested, token length: 20`, `Found N stored keys`, `>> AUTH_SIGNATURE`, `Connected! Banner: …`, then every `OPEN` / `OKAY` / `WRTE` / `CLSE` plus shell commands. Copy button dumps the whole log to clipboard.
 
-### Quick Start
+This is what made the silent-auth bug visible during development: every reconnect kept logging `Key rejected, got new token` even though the public key was already authorized, which traced back to `crypto.subtle.sign` hashing the token a second time. The fix is documented in adb-core.js.
 
-1. **Enable USB Debugging** on your Android device:
-   - Go to `Settings` → `About Phone`
-   - Tap `Build Number` 7 times to enable Developer Options
-   - Go to `Settings` → `Developer Options`
-   - Enable `USB Debugging`
+## Browser support
 
-2. **Connect your device** via USB cable
+| Browser | Status |
+|---|---|
+| Chrome 89+ | works |
+| Edge 89+ | works |
+| Opera 75+ | works |
+| Firefox / Safari | no WebUSB |
 
-3. **Open ADB Auditor** in Chrome/Edge
+## Device requirements
 
-4. **Click "Connect"** and select your device from the browser popup
+- Android device with USB Debugging enabled (Settings → About → tap Build number 7 times → Settings → Developer options → USB debugging)
+- A USB *data* cable, not a charge-only one
+- Root is optional. Without root, `run-as <pkg>` still gives you that app's `/data/data` tree if the app is debuggable. With root, you get the whole filesystem.
 
-5. **Accept the USB debugging prompt** on your device
+## Keyboard
 
+| Key | Action |
+|---|---|
+| `Arrow Up / Down` | Shell command history |
+| Theme button | Cycle dark ↔ light, persisted in localStorage |
 
-## Documentation
+## Privacy
 
-### File Structure
-
-```
-adbauditor/
-├── js/
-│   ├── adb-core.js         # ADB protocol implementation
-│   ├── app.js              # Main application logic
-│   └── security-auditor.js # Security scanning module
-├── img/
-│   └── logo.svg            # Application logo
-├── docs/
-│   ├── API.md              # API documentation
-│   └── SECURITY.md         # Security considerations
-├── index.html              # Main application
-├── 404.html                # Error page
-├── robots.txt              # SEO robots file
-├── sitemap.xml             # SEO sitemap
-├── LICENSE                 # MIT License
-└── README.md               # This file
-```
-
-### Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl + 1-6` | Switch between tabs |
-| `Ctrl + R` | Refresh current view |
-| `Ctrl + D` | Disconnect device |
-| `↑ / ↓` | Navigate shell history |
-
-## Privacy & Security
-
-- **Zero Data Upload**: All processing is done locally in your browser
-- **No Tracking**: No analytics, telemetry, or tracking of any kind
-- **No Account Required**: Use immediately without registration
-- **Open Source**: Full source code available for audit
+- Device data is read into a JS buffer, parsed in memory, rendered, and dropped when you close the tab.
+- The only network requests are for fonts (`fonts.googleapis.com`), which can be cached or blocked without affecting the tool.
+- Stored RSA private keys live in IndexedDB scoped to the page's origin. Clearing site data wipes them.
+- No analytics, no telemetry, no tracking pixels, no remote logging.
 
 ## Troubleshooting
 
-### Device Not Detected
+**`Failed to execute 'claimInterface' on USBDevice: Unable to claim interface`**
+Another process is holding the device. Run `adb kill-server` in your terminal, close other Chrome tabs that are connected to the device, close Android Studio / scrcpy / Vysor, then retry. The page also shows a help modal with these exact steps when it detects this error.
 
-1. Try a different USB cable (ensure it's a data cable)
-2. Try a different USB port
-3. Revoke USB debugging authorizations and re-authorize
-4. Restart ADB on device: `adb kill-server && adb start-server`
+**Device prompt every connection**
+This used to happen because of a signing bug. Pull the latest build. After one accept, the stored key persists in IndexedDB and reconnects are silent.
 
-### Connection Lost
+**`Permission denied` browsing /data/data**
+The target app needs to be debuggable for `run-as` to give you access. Otherwise enable the Root toggle (your device must be rooted) so the file browser falls back to `su -c`.
 
-1. Check USB cable connection
-2. Disable battery optimization for USB debugging
-3. Keep device screen on during transfer
-
-### Permission Denied
-
-1. Enable Root toggle for protected directories
-2. Grant root access on device when prompted
-3. Some system files may still be inaccessible
-
-
+**No paired devices listed**
+Plug the cable in first, then accept the USB debugging prompt on the device, then refresh.
 
 ## License
 
-This project is licensed under the License: CC BY-NC-ND 4.0
-
-
-
-## Disclaimer
-
-This tool is intended for authorized security testing and educational purposes only. Users are responsible for ensuring they have proper authorization before testing any device. The authors are not responsible for any misuse of this tool.
+CC BY-NC-ND 4.0. See [LICENSE](LICENSE).
 
 ## Author
 
-**Sandeep Wawdane**
+Built by [Sandeep Wawdane](https://github.com/thecybersandeep).
 
-- LinkedIn: [@sandeepwawdane](https://www.linkedin.com/in/sandeepwawdane/)
-- GitHub: [@thecybersandeep](https://github.com/thecybersandeep)
+For authorized security testing and educational use. Get permission before analyzing devices you do not own.
 
----
+## Sister tools
 
-<p align="center">
-  Made with ❤️ for the Security Community
-</p>
-
-<p align="center">
-  <a href="https://github.com/thecybersandeep/adbauditor/stargazers">⭐ Star this repo</a> if you find it useful!
-</p>
+- [IPA Auditor](https://ipaauditor.com) - drag-drop iOS IPA static analyzer
+- [APK Auditor](https://apkauditor.com) - drag-drop Android APK static analyzer
