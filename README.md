@@ -27,9 +27,9 @@
 
 ## Overview
 
-ADB Auditor is a browser-based Android security auditing tool designed for penetration testers, security researchers, and cybersecurity professionals. It connects to Android devices via WebUSB and provides comprehensive security analysis capabilities without requiring any server-side processing.
+ADB Auditor is a browser-based Android security auditor. It connects to your phone over WebUSB, runs ADB commands directly from the browser, and lets you list apps, browse files (with root), capture screenshots, open a shell, and scan for common security issues. Nothing leaves the tab.
 
-**🔒 100% Client-Side** - All data processing happens in your browser. No data is ever uploaded to any server.
+**100% Client-Side** - All data processing happens in your browser. No data is ever uploaded to any server.
 
 ## Features
 
