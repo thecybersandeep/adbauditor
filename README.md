@@ -53,8 +53,6 @@ The dock on the left has six sections:
 - **Shell** - persistent `shell:` socket with command history (Arrow Up / Down)
 - **Security** - MASTG-aligned audit with per-test cards and per-finding instance lists
 
-![Security Analysis](docs/screenshots/security-scan.png)
-
 ## Security checks
 
 Each test in the auditor returns `{ id, category, title, status, severity, findings[] }`. Findings carry the actual evidence and (where it makes sense) an `instances[]` array of matched lines or components.
@@ -81,8 +79,6 @@ Each test in the auditor returns `{ id, category, title, status, severity, findi
 Every test fans out into a card with severity-coloured side rail (red / amber / blue / grey) and a deduped per-instance list.
 
 ## Connection flow
-
-![Connect](docs/screenshots/connect.png)
 
 1. Click **Connect**. Chrome's USB device picker appears.
 2. Select your device. The page calls `claimInterface` on the ADB endpoint.
@@ -119,12 +115,6 @@ Docker is available too if you prefer:
 docker-compose up -d
 # open http://localhost:8080
 ```
-
-## Diagnostics
-
-Append `?debug=1` to the URL. A floating panel appears in the bottom right that streams every ADB packet: `>> CNXN`, `<< AUTH`, `Auth requested, token length: 20`, `Found N stored keys`, `>> AUTH_SIGNATURE`, `Connected! Banner: …`, then every `OPEN` / `OKAY` / `WRTE` / `CLSE` plus shell commands. Copy button dumps the whole log to clipboard.
-
-This is what made the silent-auth bug visible during development: every reconnect kept logging `Key rejected, got new token` even though the public key was already authorized, which traced back to `crypto.subtle.sign` hashing the token a second time. The fix is documented in adb-core.js.
 
 ## Browser support
 
