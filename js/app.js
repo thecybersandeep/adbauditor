@@ -2320,4 +2320,5 @@
             showToast('Download failed: ' + (e.message || 'Unknown'), 'error');
         }
     };
+window.app = app;
 })();
