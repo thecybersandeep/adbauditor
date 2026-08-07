@@ -2176,11 +2176,11 @@
         const modal = document.getElementById('claimErrorModal');
         const pre = document.getElementById('claimErrorDetails');
         if (pre) pre.textContent = detail || '(no additional detail)';
-        if (modal) modal.classList.add('active');
+        if (modal) modal.classList.add('show');
     }
     function closeClaimErrorModal() {
         const modal = document.getElementById('claimErrorModal');
-        if (modal) modal.classList.remove('active');
+        if (modal) modal.classList.remove('show');
     }
     setupTheme();
     const logoHome = document.getElementById('logoHome');
@@ -2320,4 +2320,5 @@
             showToast('Download failed: ' + (e.message || 'Unknown'), 'error');
         }
     };
+    window.app = app;
 })();
